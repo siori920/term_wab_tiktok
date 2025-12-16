@@ -15,7 +15,6 @@
             align-items: center;
             background-color: #000;
         }
-
         .container {
             width: 100vw;
             height: 100vh;
@@ -25,7 +24,6 @@
             align-items: center;
             overflow: hidden; /* 画面に収めるためにオーバーフローを隠す */
         }
-
         video {
             max-width: 100%;  /* ウィンドウ幅に合わせる */
             max-height: 100%; /* ウィンドウ高さに合わせる */
@@ -33,36 +31,150 @@
         }
     </style>
     <script>
+        // Google Apps Script Web App URL (デプロイ後のURLに置き換えてください)
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyKbGudXTr8EdEFpXGkHKVdpcAWooKSCs76vylUMwNhnrekknvENeIVqNb50T-gAneG/exec';
+
         // MP4動画のリスト
         const videos = [
             'videos/video1.mp4',
             'videos/video3.mp4',
         ];
-
         let currentVideoIndex = 0;
-
+        
+        // 統計データの初期化
+        let videoStats = {
+            video0: { count: 0, videoName: 'video1.mp4' },
+            video1: { count: 0, videoName: 'video3.mp4' }
+        };
+        
+        // 統計をサーバーから読み込む(バックグラウンドで実行)
+        async function loadStats() {
+            try {
+                const response = await fetch(API_URL);
+                if (response.ok) {
+                    videoStats = await response.json();
+                    console.log('✅ サーバーから統計を読み込みました');
+                } else {
+                    console.log('⚠️ サーバーから統計を取得できませんでした。初期値を使用します。');
+                }
+            } catch (e) {
+                console.log('⚠️ サーバー接続エラー。ローカルモードで動作します:', e);
+            }
+        }
+        
+        // 統計を保存(サーバーに送信) - 動画ファイル名を送信
+        async function saveVideoPlay(videoIndex) {
+            // 動画ファイル名を取得
+            const videoKey = `video${videoIndex}`;
+            const videoName = videoStats[videoKey].videoName;
+            
+            try {
+                const url = `${API_URL}?videoIndex=${encodeURIComponent(videoIndex)}&videoName=${encodeURIComponent(videoName)}`;
+                await fetch(url, {
+                    method: 'POST',
+                    mode: 'no-cors'
+                });
+                
+                console.log('💾 再生記録をサーバーに送信しました:', videoName);
+            } catch (e) {
+                console.error('❌ サーバー接続エラー:', e);
+            }
+        }
+        
         // ランダムな動画を再生
         function showRandomVideo() {
             const randomIndex = Math.floor(Math.random() * videos.length);
+            currentVideoIndex = randomIndex;
             const videoElement = document.getElementById("video-player");
             videoElement.src = videos[randomIndex];
             videoElement.play(); // 動画を再生
+            
+            // ローカルの統計を更新
+            const videoKey = `video${randomIndex}`;
+            videoStats[videoKey].count++;
+            
+            // サーバーに再生記録を送信
+            saveVideoPlay(randomIndex);
+            
+            console.log('✅ 動画再生を記録しました:', videos[randomIndex]);
         }
-
+        
         // 次の動画を再生
         function showNextVideo() {
             currentVideoIndex = (currentVideoIndex + 1) % videos.length;
             const videoElement = document.getElementById("video-player");
             videoElement.src = videos[currentVideoIndex];
             videoElement.play(); // 動画を再生
+            
+            // ローカルの統計を更新
+            const videoKey = `video${currentVideoIndex}`;
+            videoStats[videoKey].count++;
+            
+            // サーバーに再生記録を送信
+            saveVideoPlay(currentVideoIndex);
+            
+            console.log('✅ 動画再生を記録しました:', videos[currentVideoIndex]);
         }
+        
+        // 統計を表示
+        async function showStats() {
+            try {
+                // サーバーから最新の統計を取得
+                const response = await fetch(API_URL);
+                if (response.ok) {
+                    videoStats = await response.json();
+                }
+            } catch (e) {
+                console.error('❌ 統計の取得に失敗しました:', e);
+            }
 
+            console.clear();
+            console.log('='.repeat(70));
+            console.log('📊 動画再生統計(全ブラウザ・全デバイス共有)');
+            console.log('='.repeat(70));
+            
+            let totalPlays = 0;
+            for (let i = 0; i < videos.length; i++) {
+                const videoKey = `video${i}`;
+                const stats = videoStats[videoKey];
+                totalPlays += stats.count;
+            }
+            
+            for (let i = 0; i < videos.length; i++) {
+                const videoKey = `video${i}`;
+                const stats = videoStats[videoKey];
+                const percent = totalPlays > 0 ? Math.round(stats.count / totalPlays * 100) : 0;
+                
+                console.log(`\n【動画${i + 1}】`);
+                console.log('-'.repeat(60));
+                console.log(`動画名: ${stats.videoName}`);
+                console.log(`再生回数: ${stats.count}回 (${percent}%)`);
+            }
+            
+            console.log(`\n合計再生回数: ${totalPlays}回`);
+            console.log('\n' + '='.repeat(70));
+            console.log('💡 統計をリセットするには、Googleスプレッドシートのデータを削除してください');
+            console.log('='.repeat(70));
+            
+            alert('統計をコンソールに表示しました。\nF12キーを押してコンソールを確認してください。');
+        }
+        
+        // グローバルに関数を公開
+        window.showStats = showStats;
+        
         // ページロード時にランダムな動画を再生
         window.onload = function() {
+            // 統計の読み込みはバックグラウンドで非同期実行
+            loadStats();
+            
             showRandomVideo();
             // 動画が終わるごとに次の動画を再生
             const videoElement = document.getElementById("video-player");
             videoElement.onended = showNextVideo;
+            
+            console.log('📝 デジタルサイネージが読み込まれました');
+            console.log('💡 統計を見るにはコンソールで showStats() を実行してください');
+            console.log('🌐 統計は全ブラウザ・全デバイスで共有されます');
         };
     </script>
 </head>
@@ -73,4 +185,3 @@
     </div>
 </body>
 </html>
-
