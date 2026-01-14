@@ -31,9 +31,6 @@
         }
     </style>
     <script>
-        // Google Apps Script Web App URL
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxbeXIUuTHzoKvso1WMYRbGqmnU_rBatg_aPN0ODhIOKOXio-jl5JhQbv3unZ4gu77n/exec';
-
         // MP4動画のリスト
         const videos = [
             'videos/video1.mp4',
@@ -41,48 +38,11 @@
         ];
         let currentVideoIndex = 0;
         
-        // 統計データの初期化
+        // 統計データ（ローカルのみ）
         let videoStats = {
             video0: { count: 0, videoName: 'video1.mp4' },
             video1: { count: 0, videoName: 'video3.mp4' }
         };
-        
-        // 統計をサーバーから読み込む
-        async function loadStats() {
-            try {
-                // キャッシュ回避のためにタイムスタンプを付与
-                const response = await fetch(`${API_URL}?t=${Date.now()}`);
-                if (response.ok) {
-                    videoStats = await response.json();
-                    console.log('✅ サーバーから統計を読み込みました');
-                } else {
-                    console.log('⚠️ サーバーから統計を取得できませんでした。');
-                }
-            } catch (e) {
-                console.log('⚠️ サーバー接続エラー。ローカルモードで動作します:', e);
-            }
-        }
-        
-        // 統計を保存(サーバーに送信)
-        async function saveVideoPlay(videoIndex) {
-            const videoKey = `video${videoIndex}`;
-            const videoName = videoStats[videoKey] ? videoStats[videoKey].videoName : `video${videoIndex + 1}.mp4`;
-            
-            try {
-                // 最も制限を受けにくい GET 方式に変更
-                // URLにパラメータを付与
-                const url = `${API_URL}?videoIndex=${encodeURIComponent(videoIndex)}&videoName=${encodeURIComponent(videoName)}&t=${Date.now()}`;
-                
-                await fetch(url, {
-                    method: 'GET',
-                    mode: 'no-cors' // ブラウザ制限を回避
-                });
-                
-                console.log('💾 再生記録をサーバーに送信(GET):', videoName);
-            } catch (e) {
-                console.error('❌ サーバー送信エラー:', e);
-            }
-        }
         
         // 動画を再生する共通処理
         function playVideo(index) {
@@ -100,9 +60,7 @@
                 videoStats[videoKey].count++;
             }
             
-            // サーバーに送信
-            saveVideoPlay(index);
-            console.log('✅ 動画再生を記録中:', videos[index]);
+            console.log('✅ 動画再生:', videos[index]);
         }
 
         // ランダムな動画を再生
@@ -118,18 +76,9 @@
         }
         
         // 統計を表示（デバッグ用）
-        async function showStats() {
-            try {
-                const response = await fetch(`${API_URL}?t=${Date.now()}`);
-                if (response.ok) {
-                    videoStats = await response.json();
-                }
-            } catch (e) {
-                console.error('❌ 統計取得エラー:', e);
-            }
-
+        function showStats() {
             console.clear();
-            console.log('📊 動画再生統計');
+            console.log('📊 動画再生統計（ローカルのみ）');
             let totalPlays = 0;
             Object.keys(videoStats).forEach(key => {
                 totalPlays += videoStats[key].count;
@@ -147,7 +96,6 @@
         window.showStats = showStats;
         
         window.onload = function() {
-            loadStats(); // 初回読み込み
             showRandomVideo(); // 再生開始
             
             const videoElement = document.getElementById("video-player");
